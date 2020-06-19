@@ -2,6 +2,7 @@ import json
 import os
 import platform
 import re
+import threading
 from urllib.error import URLError
 from urllib.parse import quote, quote_plus, urlsplit, urlunsplit
 from urllib.request import urlopen, Request
@@ -15,6 +16,8 @@ from sorl.thumbnail.conf import settings
 from sorl.thumbnail.default import storage as default_storage
 from sorl.thumbnail.helpers import ThumbnailError, tokey, get_module_class, deserialize
 from sorl.thumbnail.parsers import parse_geometry
+
+thread_local_data = threading.local()
 
 url_pat = re.compile(r'^(https?|ftp):\/\/')
 
@@ -36,8 +39,16 @@ def deserialize_image_file(s):
 
     class LazyStorage(LazyObject):
         def _setup(self):
-            self._wrapped = get_module_class(data['storage'])()
+            if not hasattr(thread_local_data, 'storage_cache'):
+                thread_local_data.storage_cache = {}
 
+            if data['storage'] in thread_local_data.storage_cache:
+                self._wrapped = thread_local_data.storage_cache[data['storage']]
+            else:
+                storage_instance = get_module_class(data['storage'])()
+                thread_local_data.storage_cache[data['storage']] = storage_instance
+                self._wrapped = storage_instance
+                
     image_file = ImageFile(data['name'], LazyStorage())
     image_file.set_size(data['size'])
     return image_file
