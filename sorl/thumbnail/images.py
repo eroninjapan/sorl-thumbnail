@@ -8,6 +8,7 @@ from urllib.request import urlopen, Request
 
 from django.core.files.base import File, ContentFile
 from django.core.files.storage import Storage  # , default_storage
+from django.core.files.storage import FileSystemStorage
 from django.utils.encoding import force_str
 from django.utils.functional import LazyObject, empty
 from sorl.thumbnail import default
@@ -79,6 +80,9 @@ class ImageFile(BaseImageFile):
     _size = None
 
     def __init__(self, file_, storage=None):
+        if settings.THUMBNAIL_FAST_URL:
+            self.standard_storage = FileSystemStorage()
+        
         if not file_:
             raise ThumbnailError('File is empty.')
 
@@ -156,7 +160,10 @@ class ImageFile(BaseImageFile):
 
     @property
     def url(self):
-        return self.storage.url(self.name)
+        if settings.THUMBNAIL_FAST_URL:
+            return self.standard_storage.url(self.name)
+        else:
+            return self.storage.url(self.name)
 
     def read(self):
         f = self.storage.open(self.name)
